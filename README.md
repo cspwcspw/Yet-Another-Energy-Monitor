@@ -3,7 +3,7 @@
 ##  Sensing, and making sense of a CT Clamp SCT-013-030
 
 The current sensing clamp I have is a Banggood device, 
-http://statics3.seeedstudio.com/assets/file/bazaar/product/101990028-SCT-013-030-Datasheet.pdf 
+http://statics3.seeedstudio.com/assets/file/bazaar/product/101990028-SCT-013-030-Datasheet.pdf   This project uses an Arduino Uno clone.
 
 If we believe these device specs (I am somewhat skeptical), the response is
 1V per 30Amps.  Is this 1V peak-to-peak, Amplitude, Average, or RMS?  
@@ -101,7 +101,7 @@ to know if I'd be able to clip one half of the signal.
 The output shows the Vin voltage from the sensor, (white, ranging over 6 different amplitudes), 
 and the green is the amplified output, with some clipping on one half of the sin wave.   
 
-![simulatedOutputs](Images/simulated_outputs.png "Simulated outputs")
+![simulatedOutputs](Images/simulated_Outputs.png "Simulated outputs")
 
 I thought the initial dip in the green V(vout) at 20ms was important: it assures us that 
 we're still in the active region of the transistor for small positive inputs, 
@@ -265,7 +265,7 @@ the negative and positive halves of the cycle should have balanced sums. We
 store `zeroVal` (and all other accumulators) as double values. So even though the 
 raw ADC readings might oscillate a bit from noise 510, 511, 511, 512, 512 ...
 we'll have an average, slow-learning `zeroVal` that keeps that zero point as 
-accurate as we can get it. Better accuracy here allows us to detect smaller  
+accurate as we can get it. Better accuracy here allows us to detect smaller 
 currents above the inherent noise level.
 
 During one mains cycle with perhaps 100 sample points, 
@@ -316,21 +316,21 @@ class WaveIntegrator
       zeroVal = initialZeroVal;
     }
 
-    bool addReading(int val) {
+    bool addReading(int ival) {
 
       if (numReadingsToGo <= 0) reset();
  
-      val = val - zeroVal;
-      if (val > 0) {
-        highHalf += val;
-        if (val > highPeak) {
-          highPeak = val;
+      double dval = ival - zeroVal;
+      if (dval > 0) {
+        highHalf += dval;
+        if (dval > highPeak) {
+          highPeak = dval;
         }
       }
-      else if (val < 0) {   // process the negative half of the sine wave
-        lowHalf += val;
-        if (val < lowPeak) {
-          lowPeak = val;
+      else if (dval < 0) {   // process the negative half of the sine wave
+        lowHalf += dval;
+        if (dval < lowPeak) {
+          lowPeak = dval;
         }
       }
 
@@ -386,20 +386,17 @@ if (cycleComplete) {
         double waveArea = sumOfBothHalves / numSamplesPerCycle / cyclesUntilNextReport;
 
         double highHalfAvg = sumOfHighHalf / numSamplesPerCycle / cyclesUntilNextReport;
-         double lowHalfAvg =  sumOfLowHalf / numSamplesPerCycle / cyclesUntilNextReport;
+        double lowHalfAvg =  sumOfLowHalf / numSamplesPerCycle / cyclesUntilNextReport;
         
-        char watts[15];
-        dtostrf(toWatts(waveArea), 7, 3, watts);
-
         resetForNextCycle();
 
         switch (reportingStyle) {
         ...
         case 2:
-          sayf("waveArea: %f --> %s Watts\n",  waveArea, watts);
+          sayf("waveArea: %f --> %f Watts\n",  waveArea, watts);
           break;
         case 3:
-          sayf("two halves: %f %f (lopsided by %f) zeroVal=%0.4f   waveArea=%f --> %s Watts\n",
+          sayf("two halves: %0.3f %0.3f (lopsided by %0.3f) zeroVal=%0.4f   waveArea=%0.3f --> %0.2f Watts\n",
             lowHalfAvg, highHalfAvg, lowHalfAvg + highHalfAvg, theIntegrator.zeroVal, waveArea, watts );
               break;
           }
@@ -408,9 +405,9 @@ if (cycleComplete) {
 
 ```
 
-The `sayf` function is a minimal home-wriiten version of printf that can also format doubles.  
+The `sayf` function is a minimal home-written version of `printf` that can also format doubles.  
 
-The important mapping here is `toWatts()` that convers the integral sum value into watts. 
+The important mapping here is `toWatts()` that converts the sum value into watts. 
 
 
 ## Calibration and Conversions
@@ -420,16 +417,15 @@ to make sense.
 
 If that conversion is assumed to be a straight-line (linear) mapping, just two reference points
 are required: `(Xi,Yi)` where `Xi` is the reading from the software, and `Yi` is the
-corresponding wattage value.   The straight-line mapping is then a formula `f(x)=a+bx`.  All we need
-are to solve for `a` and `b` are two points on the line.
+corresponding wattage value.   The straight-line mapping is then a formula `f(x)=b+mx`.  All we need
+are to solve for `m` and `b` are two points on the line.
 
-If we assume some non-linear effects (the ADC on one of my ESP32 processors seems to read low near 
+If we assume some non-linear effects (the ADC on my ESP32 processors seem to read low near 
 its middle-of-scale) then a better conversion occurs if we have many `(Xi,Yi)` points in a lookup
-table. The assumption is then that the conversion is represented by a straight line between
-its two closest points.
+table. The assumption is then that the conversion can be more accurately 
+guessed by assuming straight line between the two closest points.
 
 ```
-
 const int numRefPts = 20;  // each x,y takes two slots in the array
 const double xs[numRefPts] =  {
   // reading -> watts
@@ -468,7 +464,7 @@ software output as close as possible to the Efergy readings.
 ![energy monitor](Images/energy_Monitor.jpg "energy monitor")
 
 So an exercise followed where I plugged in lamps, heaters, heat-adjustable soldering irons,
-etc. in various combinations, and recorded various `(Xi,Yi)` points.  Once observation is
+etc. in various combinations, and recorded various `(Xi,Yi)` points.  One observation is
 that the readings are not very stable, nor repeatable.  The same heater element will often 
 show up to 50 watts different consumption on another day.  
 
@@ -481,13 +477,14 @@ best fit (rather than the more complex linear interpolation) would be easier.
 I coded up the steps at 
 https://www.varsitytutors.com/hotmath/hotmath_help/topics/line-of-best-fit
 to find the best fit approximation, and ran it on the values in the table above.
-It puts the best-fit line as (m is slope, b is intercept)
+It puts the best-fit line as (`m` is slope, `b` is intercept)
 ```
 Calculated m = 9.80, b=5.41
 ```
-Its not a great approximation at low values, but once we get above about 40 watts 
-the straight line algorithm (values in parentheses below) is 
-adequately close to the more complex linear interpolation method.
+The straight line is not a great approximation at small currents,
+but once we get above about 40 watts 
+the straight line conversion (values in parentheses below) is 
+adequately close to the more complicated linear interpolation method.
 ```
 
 waveArea: 0.25 --> 2.26 Watts (or 7.84 Watts)
