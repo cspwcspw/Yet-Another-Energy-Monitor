@@ -1,4 +1,4 @@
-
+ 
 #pragma once
 
 
@@ -93,12 +93,12 @@ const int numRefPts = 20;  // each x,y takes two slots in the array
 const double xs[numRefPts] =  {
   // reading -> watts
   -0.001,   2.2,     // dummy first table entry, calculated
-  0.4,   2.3,
-  1.39,   11.7,
+  0.11,   2.2,
+  1.57,   10.5,
   2.88,  28,
   4.71, 54.7,
-  5.43, 62.6,
-  101.22, 1028,
+  6.6, 59,
+  120.41, 1050,
   180,  1750,
   280,  2750,
   2800, 27500    // dummy last table entry, calculated

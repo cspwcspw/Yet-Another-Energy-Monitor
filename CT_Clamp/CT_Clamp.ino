@@ -43,6 +43,7 @@ void resetForNextCycle() {
   sumOfLowPeaks = 0;
   sumOfBothHalves = 0;
   sumOfLowHalf = 0;
+  sumOfHighHalf = 0;
   sumOfBothHalves = 0;
 }
 
@@ -139,7 +140,7 @@ void loop() {
       if (cycleComplete) {
 
         if (extraInfo) {  // playpen stuff
-          sayf("Extra: loSum=%ld  hiSum=%ld  loPeak=%d   hiPeak=%d\n",
+          sayf("Extra: loSum=%f  hiSum=%f loPeak=%f   hiPeak=%f\n",
                theIntegrator.lowHalf,   theIntegrator.highHalf,
                theIntegrator.lowPeak,   theIntegrator.highPeak);
         }
