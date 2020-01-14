@@ -3,7 +3,8 @@
 ##  Sensing, and making sense of a CT Clamp SCT-013-030
 
 The current sensing clamp I have is a Banggood device, 
-http://statics3.seeedstudio.com/assets/file/bazaar/product/101990028-SCT-013-030-Datasheet.pdf   This project uses an Arduino Uno clone.
+http://statics3.seeedstudio.com/assets/file/bazaar/product/101990028-SCT-013-030-Datasheet.pdf   This project uses an Arduino Uno clone, 
+and also an ESP32.   
 
 If we believe these device specs (I am somewhat skeptical), the response is
 1V per 30Amps.  Is this 1V peak-to-peak, Amplitude, Average, or RMS?  
@@ -142,6 +143,24 @@ reductions in the noise (sampled by the software) by detaching my
 diagnostic tools, and by keeping the leads short. Hence the reason for soldering
 what was needed onto the shield.  
 
+Change 7 Jan 2020: I noticed the noise level rising considerably 
+as I brought my hand close to the circuit.  And I'd been watching Dave's 
+bypass capacitor video at https://www.youtube.com/watch?v=BcJ6UdDx1vg.  
+The blue and white wires in the build were taken
+out and replaced with a short piece of shielded cable. 
+I added the capacitor from the ESP32 suggestion 
+(shown in the circuit diagram), and I also added some secondary 
+capacitors (100pF) across my bias capacitor, and across the new 
+capacitor on the signal line going to A0.  Collectively these
+changes seemed to bring down the floor level of my noise to 
+about half of its previous value.  
+
+I don't think any of the extra "noise reduction" 
+circuitry is necessary to make the circuit
+fit-for-purpose.  For more noise minimization 
+one needs to build this on a PCB with large earth pads, 
+short tracks, and small-form-factor surface mount components.  
+
 ## Software Goals
 
 I was building this to experiment and learn a bit about power monitoring.  
@@ -180,7 +199,18 @@ phase-shifted from my voltage wave?
   So the main program is organized something like this: (The real 
   code might be a bit messier, but follows these ideas...)
 
+  Update: When I ported the system to an ESP32 I had more ADC resolution. 
+  I decided to best accommodate arbitrary hardware or ADCs, I should convert
+  every ADC into a value between 0 and 1.  But that is a bit awkward: for 
+  humans, expressing the value as a percentage seemed easier.  So I now scale
+  every ADC raw reading into a double value in the range [0-100).  The midpoint
+  of the ADC scale is always assumed to be 50% of full-scale, initially.
+
   ```
+
+const int ADC_Range = 1024;    // for Uno.  4096 for ESP32
+const int smoothingReads = 4;  // The Uno gets away nicely with just 1
+
 const int mainsFrequency = 50;
 const int numSamplesPerCycle = 100;  // Samples to take per mains A/C cycle.
 long timeBetweenClampSamples = 
@@ -189,9 +219,7 @@ long nextSampleDue = 0;        // The timing is in microsecs
 
 bool rawMode = false;          // Don't analyze - just show raw ADC readings.
 
-// Set this to the midpoint of the ADC sample range for your hardware.
-const int zeroReadingGuess = 510;
-WaveIntegrator theIntegrator(numSamplesPerCycle, zeroReadingGuess);
+WaveIntegrator theIntegrator(numSamplesPerCycle);
 
 ...
 
@@ -202,7 +230,15 @@ void loop() {
     if (timeNow >= nextSampleDue) {
 
        nextSampleDue += timeBetweenClampSamples;
-       int val = analogRead(A0);
+       
+       double val = 0;
+       for (int n = 0; n < smoothingReads; n++) {
+         val += analogRead(sensor);
+       }
+       val /= smoothingReads;
+       // Normalize reading into percentage of fullscale rangeADCs
+       val = (val * 100.0) / ADC_Range;
+
        if (rawMode) {
           Serial.println(val);
        }
@@ -429,16 +465,16 @@ guessed by assuming straight line between the two closest points.
 const int numRefPts = 20;  // each x,y takes two slots in the array
 const double xs[numRefPts] =  {
   // reading -> watts
-  -0.001,   2.2,     // dummy first table entry, estimated
-  0.4,      2.3,
-  1.39,    11.7,
-  2.88,    28,
-  4.71,    54.7,
-  5.43,    62.6,
-  101.22, 1028,
-  180,    1750,
-  280,    2750,
-  2800,  27500    // dummy last table entry, estimated
+  -0.001,   2.1,     // dummy first table entry, calculated
+  0.006,   2.2,
+  0.119,   10.8,
+  0.266,  25.5,
+  0.531, 52.0,
+  0.641, 62.3,
+  12.29, 1104,
+  21.29,  1855,
+  33.141,  2820,
+  331.41, 28200    // dummy last table entry, calculated
 };
 
 
@@ -464,9 +500,14 @@ software output as close as possible to the Efergy readings.
 ![energy monitor](Images/energy_Monitor.jpg "energy monitor")
 
 So an exercise followed where I plugged in lamps, heaters, heat-adjustable soldering irons,
-etc. in various combinations, and recorded various `(Xi,Yi)` points.  One observation is
+etc. in various combinations, and recorded some `(Xi,Yi)` points.  One observation is
 that the readings are not very stable, nor repeatable.  The same heater element will often 
-show up to 50 watts different consumption on another day.  
+show up to 50 watts different consumption on another day. My mains voltage fluctuates - 
+turning on the oven pulls the household voltage down enough to notice the lights 
+dim a bit.  At this point you may be asked 
+"What is my heat-adjustable electric frying pan doing in your study?" 
+so having a prepared answer is handy: "Its not just an electric frying pan, 
+its a more abstract instance of a variable load".
 
 If you have 120V mains, these table entries are likely out by a factor of two. 
 
@@ -476,8 +517,9 @@ In the spirit of "an experimental workbench", I wondered whether a straight-line
 best fit (rather than the more complex linear interpolation) would be easier.
 I coded up the steps at 
 https://www.varsitytutors.com/hotmath/hotmath_help/topics/line-of-best-fit
-to find the best fit approximation, and ran it on the values in the table above.
-It puts the best-fit line as (`m` is slope, `b` is intercept)
+to find the best fit approximation, and ran it on the values (not this table - this
+was done before I normalized ADC readings into percentages).
+It calculates the best-fit line as (`m` is slope, `b` is intercept)
 ```
 Calculated m = 9.80, b=5.41
 ```
@@ -508,6 +550,42 @@ waveArea: 318.36 --> 3126.77 Watts (or 3124.78 Watts)
 
 ``` 
 
+
+## Special Considerations for the ESP32
+
+The ESP32 ADC is not linear, under-reads at Vcc/2, and,like most opAmps, misbehaves close to the rails.  
+There is plenty of discussion, see for example https://www.esp32.com/viewtopic.php?t=2881 
+
+However, it made very little difference in this project. If the sensor sine-wave is centered
+somewhere near the middle of the ADC range, we stay well away from misbehaviour near the 
+0V and upper limits.  And the linear interpolation method of converting our readings to 
+watts compensates for the curve in the ADC response.  Our algorithm
+learns where it thinks the midrange of the values is (about 48% of full-scale in my case), 
+so the tendency of the ADC to under-read does not significantly 
+impact the area under the curve.  The ADC is more noisy than the Arduino, so a few more sampling
+reads for more smoothing are probably wise.  
+
+So provided we plug in all our toys and calibrate a new table of lookup values for the ESP32, 
+we're good to go.  
+
+But I did do one other thing. One the Arduino we increased sensing sensitivity by using VREF to get
+a 1.1V reference voltage for the ADC.  So on a Uno, we change the ADC reference voltage, or can externally
+supply our own reference voltage.   
+
+By contrast, the ESP32 ADC always measures against a 1.1V reference. 
+So to "scale" a 3.3v reading, it has some "attenuation" applied to the input signal before 
+measurement. By default, the attenuation is set to 11db.  There are three lower settings, each
+increases the senstivity of the readings.  So I set for no attenuation at all, so a 1.1V peak-to-peak
+swing should span all possible readings.   
+
+The one important thing is that the sensor needs to be biased in the center of the allowable
+voltages, and we don't have the 1.1v exposed on the ESP32, like we do on the Uno's AREF pin.
+So I used the 3.3V through a 5:1 voltage divider network.  The voltage at the junction
+is 1/6 of Vcc = 1/2 of 1.1V = 550mV.   Specific resistors I used were 7.5K and 1.5K.
+
+The latest ESP32 lookup table is in the code. 
+
+
 ## Summary
 
 It works.  Accuracy within a couple of percent is achievable.   My adjustable-heat soldering 
@@ -518,9 +596,9 @@ power estimates that are compatible with (and probably as good as) the more expe
 More importantly, of course, is that the flexibility of a software-based system means 
 it can be easily be extended to save statistics of power usage over time, or to switch
 between solar or utility sources of power.  And all this is achievable with a
-Current Sensor and an Arduino, together costing around $16.
+Current Sensor and an Arduino or and ESP32, together costing around $16.
 
 
 
-Last Update 30 Dec 2019.
+Last Update 14 Jan 2020.
 

@@ -40,17 +40,17 @@ class WaveIntegrator
 
   public:
 
-    WaveIntegrator(int readingsPerCycle, int initialZeroVal)
+    WaveIntegrator(int readingsPerCycle)
     { readingsInCycle = readingsPerCycle;
-      zeroVal = initialZeroVal;
+      zeroVal = 50.0;
     }
 
     // Returns true if data from the cycle is ready, false otherwise
-    bool addReading(int ival) {
+    bool addReading(long timeNow, double sensorVal) {
 
       if (numReadingsToGo <= 0) reset();
 
-      double dval = ival - zeroVal;
+      double dval = sensorVal - zeroVal;
       if (dval > 0) {
         highHalf += dval;
         if (dval > highPeak) {

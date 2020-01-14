@@ -88,22 +88,41 @@ void sayf(const char *fmt, ...) {
 // into the table below.  The first and last entry are chosen so that
 // we cannot fall off the end of the table when searching.
 
+#ifdef ESP32
+
+const int numRefPts = 18;  // each x,y takes two slots in the array
+const double xs[numRefPts] =  {
+  // reading -> watts
+  -0.001,   2.0,     // dummy first table entry, calculated
+  0.2,      2.1,
+  0.271,   10,
+  0.384,  23.3,
+  0.739, 58.6,
+  15.28, 1194,
+  23.4,  1778,
+  35.00,  2700,
+  350,    27000    // dummy last table entry, calculated
+
+};
+
+#else
 
 const int numRefPts = 20;  // each x,y takes two slots in the array
 const double xs[numRefPts] =  {
   // reading -> watts
-  -0.001,   2.2,     // dummy first table entry, calculated
-  0.11,   2.2,
-  1.57,   10.5,
-  2.88,  28,
-  4.71, 54.7,
-  6.6, 59,
-  120.41, 1050,
-  180,  1750,
-  280,  2750,
-  2800, 27500    // dummy last table entry, calculated
+  -0.001,   2.1,     // dummy first table entry, calculated
+  0.006,   2.2,
+  0.119,   10.8,
+  0.266,  25.5,
+  0.531, 52.0,
+  0.641, 62.3,
+  12.29, 1104,
+  21.29,  1855,
+  33.141,  2820,
+  331.41, 28200    // dummy last table entry, calculated
 };
 
+#endif
 
 double toWatts(double x)
 {

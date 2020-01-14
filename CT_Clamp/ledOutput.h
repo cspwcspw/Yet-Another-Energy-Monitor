@@ -1,9 +1,9 @@
 
 #pragma once
 
-// if you don't have ihardware, do nothing ...
+// if you don't have hardware, do nothing ...
 
-#if true
+#ifdef ESP32
 #define displayDouble(...)
 #define ledBegin() 
 #else
